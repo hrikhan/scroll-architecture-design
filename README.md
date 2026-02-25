@@ -1,16 +1,87 @@
-# scroll_architecture_design
+# Flutter MVVM + Riverpod + Single-Scroll Architecture
 
-A new Flutter project.
+Production-ready demo using:
+- MVVM architecture
+- Riverpod (`AsyncNotifier` + providers)
+- `http` package (no Dio)
+- `SharedPreferences` token persistence
+- FakeStore API (`https://fakestoreapi.com/`)
 
-## Getting Started
+## Features
+- Login with FakeStore auth endpoint
+- Persisted session token + cached user profile
+- Profile screen (reads stored user from session state)
+- Daraz-style product listing UI
+- Collapsible banner header + sticky tab bar
+- Tabs switch by tap and horizontal swipe
+- Pull-to-refresh from any tab
+- Clean separation: UI / ViewModel / Repository / DataSource
 
-This project is a starting point for a Flutter application.
+## Project Structure
 
-A few resources to get you started if this is your first Flutter project:
+```txt
+lib/
+├── main.dart
+├── core/
+│   ├── network/
+│   │   └── api_client.dart
+│   ├── storage/
+│   │   ├── shared_prefs_service.dart
+│   │   └── shared_prefs_provider.dart
+│   └── constants.dart
+│
+├── features/
+│   ├── auth/
+│   │   ├── data/
+│   │   │   ├── auth_remote_datasource.dart
+│   │   │   └── auth_repository_impl.dart
+│   │   ├── domain/
+│   │   │   ├── auth_repository.dart
+│   │   │   └── user_model.dart
+│   │   ├── viewmodels/
+│   │   │   └── auth_viewmodel.dart
+│   │   └── screens/
+│   │       ├── login_screen.dart
+│   │       └── profile_screen.dart
+│   │
+│   └── products/
+│       ├── data/
+│       │   ├── product_remote_datasource.dart
+│       │   └── products_repository_impl.dart
+│       ├── domain/
+│       │   ├── product_model.dart
+│       │   └── products_repository.dart
+│       ├── viewmodels/
+│       │   └── products_viewmodel.dart
+│       └── screens/
+│           └── products_screen.dart
+│
+└── widgets/
+    ├── pinned_tabbar.dart
+    └── banner_header.dart
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Run
+1. `flutter pub get`
+2. `flutter run`
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Architecture Notes (Mandatory)
+
+### 1) Horizontal swipe implementation
+- `TabBarView` is used for tab pages.
+- `TabBarView` internally uses a `PageView`, so horizontal drag is isolated to page switching.
+- `TabBar` tap and `TabBarView` swipe are both active.
+
+### 2) Vertical scroll owner
+- The screen is built with `RefreshIndicator -> NestedScrollView`.
+- `NestedScrollView` coordinates the header slivers and the active tab content so the app behaves like one continuous vertical experience.
+- Inner tab content uses `CustomScrollView + SliverList` and is coordinated by the outer nested scroll behavior.
+
+### 3) Trade-offs and limitations
+- `NestedScrollView` is powerful but more complex than a plain list.
+- Sliver composition requires discipline (header/body ownership, pinned behavior, refresh notifications).
+- To preserve tab positions and avoid jump/reset behavior, each tab uses a `PageStorageKey` and keep-alive.
+
+## FakeStore Default Credential
+- `username`: `mor_2314`
+- `password`: `83r5^_`
