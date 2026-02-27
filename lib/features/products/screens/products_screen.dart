@@ -2,220 +2,266 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants.dart';
+import '../../../core/utils/refresh_notification_predicate.dart';
 import '../../auth/screens/profile_screen.dart';
 import '../domain/product_model.dart';
 import '../viewmodels/products_viewmodel.dart';
 import '../../../widgets/banner_header.dart';
 import '../../../widgets/pinned_tabbar.dart';
+import '../../../widgets/product_card.dart';
 
-class ProductsScreen extends ConsumerWidget {
+const _kHomeScrollPhysics = AlwaysScrollableScrollPhysics(
+  parent: ClampingScrollPhysics(),
+);
+const _kTabSwipeVelocityThreshold = 350.0;
+const _kTabSwipeDistanceThreshold = 56.0;
+const _kGridCrossAxisCount = 2;
+const _kGridSpacing = 12.0;
+const _kGridChildAspectRatio = 0.72;
+const _kGridHorizontalPadding = 24.0;
+
+class ProductsScreen extends ConsumerStatefulWidget {
   const ProductsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProductsScreen> createState() => _ProductsScreenState();
+}
+
+class _ProductsScreenState extends ConsumerState<ProductsScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  late final Map<ProductsTab, ScrollController> _tabScrollControllers;
+  double _horizontalDragDistance = 0;
+  int _activeTabIndex = 0;
+
+  ProductsTab get _activeTab => ProductsTab.values[_activeTabIndex];
+  ScrollController get _activeScrollController =>
+      _tabScrollControllers[_activeTab]!;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabScrollControllers = {
+      for (final tab in ProductsTab.values) tab: ScrollController(),
+    };
+    _tabController = TabController(
+      length: AppConstants.productTabs.length,
+      vsync: this,
+    )..addListener(_syncActiveTab);
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _tabScrollControllers.values) {
+      controller.dispose();
+    }
+    _tabController
+      ..removeListener(_syncActiveTab)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _syncActiveTab() {
+    if (_activeTabIndex == _tabController.index || !mounted) {
+      return;
+    }
+    setState(() {
+      _activeTabIndex = _tabController.index;
+    });
+  }
+
+  void _onHorizontalDragStart(DragStartDetails _) {
+    _horizontalDragDistance = 0;
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    _horizontalDragDistance += details.delta.dx;
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    final hasVelocityIntent = velocity.abs() >= _kTabSwipeVelocityThreshold;
+    final hasDistanceIntent =
+        _horizontalDragDistance.abs() >= _kTabSwipeDistanceThreshold;
+
+    if (!hasVelocityIntent && !hasDistanceIntent) {
+      return;
+    }
+
+    final moveToNextTab = hasVelocityIntent
+        ? velocity < 0
+        : _horizontalDragDistance < 0;
+    _switchTab(moveToNextTab ? 1 : -1);
+  }
+
+  void _switchTab(int delta) {
+    final targetIndex = (_tabController.index + delta).clamp(
+      0,
+      _tabController.length - 1,
+    );
+    if (targetIndex == _tabController.index) {
+      return;
+    }
+    _tabController.animateTo(targetIndex);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final asyncProducts = ref.watch(productsViewModelProvider);
+    final products = ref.watch(productsByTabProvider(_activeTab));
+    final maxTabProductCount = ProductsTab.values
+        .map((tab) => ref.watch(productsByTabProvider(tab)).length)
+        .fold<int>(0, (maxCount, count) => count > maxCount ? count : maxCount);
+
     final tabBar = TabBar(
+      controller: _tabController,
       isScrollable: false,
       tabs: AppConstants.productTabs
           .map((label) => Tab(text: label))
           .toList(growable: false),
     );
 
-    return DefaultTabController(
-      length: AppConstants.productTabs.length,
-      child: Scaffold(
-        body: RefreshIndicator(
-          onRefresh: () => ref.read(productsViewModelProvider.notifier).refresh(),
-          notificationPredicate: (notification) {
-            return notification.metrics.axis == Axis.vertical;
-          },
-          child: NestedScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              return [
-                SliverAppBar(
-                  expandedHeight: AppConstants.bannerExpandedHeight,
-                  pinned: true,
-                  elevation: 0,
-                  backgroundColor: const Color(0xFFF57224),
-                  title: const Text('FakeStore'),
-                  actions: [
-                    IconButton(
-                      tooltip: 'Profile',
-                      icon: const Icon(Icons.person_outline),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => const ProfileScreen(),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                  flexibleSpace: const FlexibleSpaceBar(
-                    collapseMode: CollapseMode.parallax,
-                    background: BannerHeader(),
-                  ),
-                ),
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: PinnedTabBar(tabBar: tabBar),
-                ),
-              ];
-            },
-            body: const TabBarView(
-              children: [
-                _ProductsTabView(tab: ProductsTab.all, storageKey: 'products-all'),
-                _ProductsTabView(tab: ProductsTab.men, storageKey: 'products-men'),
-                _ProductsTabView(tab: ProductsTab.women, storageKey: 'products-women'),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProductsTabView extends ConsumerStatefulWidget {
-  const _ProductsTabView({
-    required this.tab,
-    required this.storageKey,
-  });
-
-  final ProductsTab tab;
-  final String storageKey;
-
-  @override
-  ConsumerState<_ProductsTabView> createState() => _ProductsTabViewState();
-}
-
-class _ProductsTabViewState extends ConsumerState<_ProductsTabView>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-
-    final asyncProducts = ref.watch(productsViewModelProvider);
-    final products = ref.watch(productsByTabProvider(widget.tab));
-    final hasInitialData = asyncProducts.hasValue;
-
-    return CustomScrollView(
-      key: PageStorageKey(widget.storageKey),
-      physics: const AlwaysScrollableScrollPhysics(),
-      slivers: [
-        const SliverToBoxAdapter(child: SizedBox(height: 12)),
-        if (asyncProducts.isLoading && !hasInitialData)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: CircularProgressIndicator()),
-          )
-        else if (asyncProducts.hasError && !hasInitialData)
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: _ErrorState(
-              message: asyncProducts.error.toString(),
-              onRetry: () {
-                ref.read(productsViewModelProvider.notifier).refresh();
-              },
-            ),
-          )
-        else if (products.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: Text('No products found in this tab.')),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: ProductCard(product: products[index]),
-                ),
-                childCount: products.length,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  @override
-  bool get wantKeepAlive => true;
-}
-
-class ProductCard extends StatelessWidget {
-  const ProductCard({super.key, required this.product});
-
-  final Product product;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 88,
-              height: 88,
-              color: Colors.white,
-              alignment: Alignment.center,
-              child: Image.network(
-                product.image,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.image_not_supported),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '\$${product.price.toStringAsFixed(2)}',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: const Color(0xFFF57224),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, size: 16, color: Colors.amber),
-                      const SizedBox(width: 4),
-                      Text('${product.ratingRate} (${product.ratingCount})'),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    product.category,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: Colors.black54,
-                    ),
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(productsViewModelProvider.notifier).refresh(),
+        triggerMode: RefreshIndicatorTriggerMode.onEdge,
+        notificationPredicate: shouldHandlePullToRefresh,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: _onHorizontalDragStart,
+          onHorizontalDragUpdate: _onHorizontalDragUpdate,
+          onHorizontalDragEnd: _onHorizontalDragEnd,
+          child: CustomScrollView(
+            controller: _activeScrollController,
+            physics: _kHomeScrollPhysics,
+            slivers: [
+              SliverAppBar(
+                expandedHeight: AppConstants.bannerExpandedHeight,
+                pinned: true,
+                elevation: 0,
+                backgroundColor: const Color(0xFFF57224),
+                title: const Text('FakeStore'),
+                actions: [
+                  IconButton(
+                    tooltip: 'Profile',
+                    icon: const Icon(Icons.person_outline),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const ProfileScreen(),
+                        ),
+                      );
+                    },
                   ),
                 ],
+                flexibleSpace: const FlexibleSpaceBar(
+                  collapseMode: CollapseMode.parallax,
+                  background: BannerHeader(),
+                ),
               ),
-            ),
-          ],
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: PinnedTabBar(tabBar: tabBar),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+              ..._buildBodySlivers(asyncProducts, products, maxTabProductCount),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  List<Widget> _buildBodySlivers(
+    AsyncValue<List<Product>> asyncProducts,
+    List<Product> products,
+    int maxTabProductCount,
+  ) {
+    final hasInitialData = asyncProducts.hasValue;
+    if (asyncProducts.isLoading && !hasInitialData) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ];
+    }
+
+    if (asyncProducts.hasError && !hasInitialData) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: _ErrorState(
+            message: asyncProducts.error.toString(),
+            onRetry: () {
+              ref.read(productsViewModelProvider.notifier).refresh();
+            },
+          ),
+        ),
+      ];
+    }
+
+    if (products.isEmpty) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: Text('No products found in this tab.')),
+        ),
+      ];
+    }
+
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+        sliver: SliverGrid(
+          delegate: SliverChildBuilderDelegate((context, index) {
+            return ProductCard(product: products[index]);
+          }, childCount: products.length),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _kGridCrossAxisCount,
+            crossAxisSpacing: _kGridSpacing,
+            mainAxisSpacing: _kGridSpacing,
+            childAspectRatio: _kGridChildAspectRatio,
+          ),
+        ),
+      ),
+      if (maxTabProductCount > products.length)
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: _extraScrollSpaceForShortTab(
+              context,
+              currentCount: products.length,
+              maxCount: maxTabProductCount,
+            ),
+          ),
+        ),
+    ];
+  }
+
+  double _extraScrollSpaceForShortTab(
+    BuildContext context, {
+    required int currentCount,
+    required int maxCount,
+  }) {
+    if (maxCount <= currentCount) {
+      return 0;
+    }
+
+    final currentRows =
+        (currentCount + _kGridCrossAxisCount - 1) ~/ _kGridCrossAxisCount;
+    final maxRows =
+        (maxCount + _kGridCrossAxisCount - 1) ~/ _kGridCrossAxisCount;
+    final extraRows = maxRows - currentRows;
+    if (extraRows <= 0) {
+      return 0;
+    }
+
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final tileWidth =
+        (viewportWidth - _kGridHorizontalPadding - _kGridSpacing) /
+        _kGridCrossAxisCount;
+    final tileHeight = tileWidth / _kGridChildAspectRatio;
+    return extraRows * (tileHeight + _kGridSpacing);
   }
 }
 
