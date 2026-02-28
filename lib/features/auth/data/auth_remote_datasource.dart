@@ -1,3 +1,4 @@
+import '../../../core/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/user_model.dart';
 
@@ -11,11 +12,8 @@ class AuthRemoteDataSource {
     required String password,
   }) async {
     final response = await _apiClient.post(
-      '/auth/login',
-      body: {
-        'username': username,
-        'password': password,
-      },
+      ApiConstants.loginEndpoint,
+      body: {'username': username, 'password': password},
     );
 
     if (response is! Map<String, dynamic> || response['token'] is! String) {
@@ -26,7 +24,7 @@ class AuthRemoteDataSource {
   }
 
   Future<List<User>> fetchUsers() async {
-    final response = await _apiClient.get('/users');
+    final response = await _apiClient.get(ApiConstants.usersEndpoint);
 
     if (response is! List) {
       throw ApiException(statusCode: 500, message: 'Invalid users response');

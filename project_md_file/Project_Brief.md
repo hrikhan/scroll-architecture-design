@@ -41,6 +41,7 @@ lib/
 |   |   |   `-- user_model.dart
 |   |   |-- viewmodels/
 |   |   |   `-- auth_viewmodel.dart
+|   |   |-- Login_Flow.md
 |   |   `-- screens/
 |   |       |-- login_screen.dart
 |   |       `-- profile_screen.dart
@@ -51,6 +52,10 @@ lib/
 |       |-- domain/
 |       |   |-- product_model.dart
 |       |   `-- products_repository.dart
+|       |-- widgets/
+|       |   |-- products_error_state.dart
+|       |   |-- products_tab_view.dart
+|       |   `-- widgets.dart
 |       |-- viewmodels/
 |       |   `-- products_viewmodel.dart
 |       `-- screens/
@@ -85,13 +90,14 @@ lib/
 
 ### `products_screen.dart`
 - Daraz-style listing page using slivers:
-  - `SliverAppBar` for collapsible banner/search area.
+  - `NestedScrollView` with `SliverAppBar` for collapsible banner/search area.
   - `SliverPersistentHeader` with pinned `TabBar`.
-  - Product content as `SliverGrid`.
+  - Per-tab content delegated to feature widgets under `features/products/widgets/`.
 - Watches:
   - `productsViewModelProvider` for loading/data/error.
-  - `productsByTabProvider(activeTab)` for filtered data.
-- Keeps tab state inside the screen (`TabController` + `_activeTabIndex`).
+  - `productsByTabProvider(tab)` for filtered data.
+- Uses one shared `TabController` for tab taps and horizontal swipes.
+- Uses `SliverOverlapAbsorber` in outer slivers to coordinate overlap with tab bodies.
 - Pull-to-refresh calls `productsViewModel.refresh()`.
 
 ### `profile_screen.dart`
@@ -102,22 +108,19 @@ lib/
 ## Mandatory explanation
 
 ### 1) How horizontal swipe was implemented
-- Horizontal swipe is handled intentionally in `products_screen.dart` via a `GestureDetector` wrapped around the `CustomScrollView`.
-- The logic accumulates drag distance in `onHorizontalDragUpdate`.
-- On drag end, tab change is triggered only when intent is clear:
-  - velocity threshold: `350.0`
-  - distance threshold: `56.0`
-- If threshold is met, `_tabController.animateTo(...)` switches to previous/next tab.
-- Tab taps and swipe both use the same `TabController`, so behavior stays consistent.
+- Horizontal swipe is handled by `TabBarView` (native page swipe behavior).
+- Tab tap and tab swipe are both driven by one shared `TabController`.
 
 ### 2) Who owns vertical scroll and why
-- The only vertical scroll owner in the products page is `CustomScrollView`.
-- Header collapse, pinned tab bar, product grid, and refresh gesture all belong to that same scrollable.
-- This prevents nested vertical scroll conflicts, jitter, and offset desync across tabs.
-- Tab offsets are stored per tab and restored on tab switch using one shared `ScrollController`, so tab scroll position is preserved.
+- `NestedScrollView` coordinates the collapsing header and the tab bodies.
+- Shared header scroll is owned by the outer `NestedScrollView`.
+- `SliverOverlapAbsorber` (outer) and `SliverOverlapInjector` (inner) keep sliver overlap behavior correct.
+- Each tab body is a dedicated `CustomScrollView` with a unique `PageStorageKey`.
+- `AutomaticKeepAliveClientMixin` keeps each tab subtree alive, preserving list state while switching tabs.
+- Per-tab list offsets are preserved independently, so one tab list does not overwrite another.
+- `RefreshIndicator` uses a custom notification predicate so refresh starts only from a user drag at the top.
 
 ### 3) Trade-offs / limitations
-- Offset restore is discrete (`jumpTo`) rather than animated.
-- Horizontal gesture thresholds are tuned constants; they may need adjustment for different UX preferences.
-- Since swipe is custom (not `TabBarView`), there is no partial page-drag animation between tabs, only discrete tab transitions.
-- A full-screen horizontal gesture detector can conflict with future horizontally draggable child widgets unless gesture scope is narrowed.
+- `NestedScrollView` adds coordination complexity compared with one plain `CustomScrollView`.
+- Per-tab scroll is restored by key-based scroll storage; behavior depends on stable keys.
+- Header collapse state is shared by the nested scroll container, while per-tab body list offsets are preserved.

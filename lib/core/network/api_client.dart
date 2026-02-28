@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../constants.dart';
+import '../api_constants.dart';
 
 class ApiException implements Exception {
   ApiException({required this.statusCode, required this.message});
@@ -12,14 +12,13 @@ class ApiException implements Exception {
   final String message;
 
   @override
-  String toString() => 'ApiException(statusCode: $statusCode, message: $message)';
+  String toString() =>
+      'ApiException(statusCode: $statusCode, message: $message)';
 }
 
 class ApiClient {
-  ApiClient({
-    required http.Client client,
-    required this.baseUrl,
-  }) : _client = client;
+  ApiClient({required http.Client client, required this.baseUrl})
+    : _client = client;
 
   final http.Client _client;
   final String baseUrl;
@@ -52,7 +51,9 @@ class ApiClient {
   Uri _buildUri(String path, Map<String, String>? queryParameters) {
     final normalizedPath = path.startsWith('/') ? path : '/$path';
     return Uri.parse('$baseUrl$normalizedPath').replace(
-      queryParameters: queryParameters?.isEmpty == true ? null : queryParameters,
+      queryParameters: queryParameters?.isEmpty == true
+          ? null
+          : queryParameters,
     );
   }
 
@@ -103,5 +104,5 @@ final httpClientProvider = Provider<http.Client>((ref) {
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   final client = ref.watch(httpClientProvider);
-  return ApiClient(client: client, baseUrl: AppConstants.baseUrl);
+  return ApiClient(client: client, baseUrl: ApiConstants.baseUrl);
 });
