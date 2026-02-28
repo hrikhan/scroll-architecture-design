@@ -1,3 +1,0 @@
-# Run Instruction
-
-`flutter run`
