@@ -1,12 +1,60 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
-class BannerHeader extends StatelessWidget {
+const _kBannerSlides = <_BannerSlideData>[
+  _BannerSlideData(
+    title: 'Mega Deal Week',
+    subtitle: 'Up to 50% off on gadgets',
+    icon: Icons.bolt_rounded,
+    colors: [Color(0xFFF35A1F), Color(0xFFF68B2D)],
+  ),
+  _BannerSlideData(
+    title: 'New Fashion Drop',
+    subtitle: 'Fresh arrivals every day',
+    icon: Icons.auto_awesome_rounded,
+    colors: [Color(0xFFDA4B1F), Color(0xFFF27224)],
+  ),
+];
+
+class BannerHeader extends StatefulWidget {
   const BannerHeader({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  State<BannerHeader> createState() => _BannerHeaderState();
+}
 
+class _BannerHeaderState extends State<BannerHeader> {
+  late final PageController _pageController;
+  Timer? _autoSlideTimer;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _autoSlideTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (!mounted || !_pageController.hasClients) {
+        return;
+      }
+      final nextIndex = (_currentIndex + 1) % _kBannerSlides.length;
+      _pageController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoSlideTimer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -19,81 +67,66 @@ class BannerHeader extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           Positioned(
-            top: -70,
-            right: -35,
+            top: -72,
+            right: -38,
             child: _GlowCircle(
-              size: 170,
-              color: Colors.white.withValues(alpha: 0.16),
+              size: 168,
+              color: Colors.white.withValues(alpha: 0.15),
             ),
           ),
           Positioned(
-            bottom: 36,
-            right: 24,
+            bottom: 24,
+            left: -22,
             child: _GlowCircle(
-              size: 92,
-              color: Colors.white.withValues(alpha: 0.12),
-            ),
-          ),
-          Positioned(
-            bottom: -46,
-            left: -26,
-            child: _GlowCircle(
-              size: 124,
+              size: 118,
               color: Colors.black.withValues(alpha: 0.08),
             ),
           ),
           SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 62, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 52, 16, 10),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.20),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.35),
+                  _SearchBox(theme: Theme.of(context)),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 98,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: PageView.builder(
+                        controller: _pageController,
+                        itemCount: _kBannerSlides.length,
+                        onPageChanged: (index) {
+                          setState(() {
+                            _currentIndex = index;
+                          });
+                        },
+                        itemBuilder: (context, index) {
+                          return _BannerSlideCard(data: _kBannerSlides[index]);
+                        },
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.local_fire_department_rounded,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '20% OFF Flash Deal',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Discover Trendy Picks For You',
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      height: 1.12,
-                    ),
                   ),
                   const SizedBox(height: 8),
-
-                  const Spacer(),
-                  _SearchBox(theme: theme),
-                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(_kBannerSlides.length, (index) {
+                      final selected = index == _currentIndex;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        width: selected ? 20 : 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      );
+                    }),
+                  ),
                 ],
               ),
             ),
@@ -112,16 +145,16 @@ class _SearchBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 46,
+      height: 44,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -159,25 +192,64 @@ class _SearchBox extends StatelessWidget {
   }
 }
 
-class _MiniTag extends StatelessWidget {
-  const _MiniTag({required this.label});
+class _BannerSlideCard extends StatelessWidget {
+  const _BannerSlideCard({required this.data});
 
-  final String label;
+  final _BannerSlideData data;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+        gradient: LinearGradient(
+          colors: data.colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
       ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    data.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    data.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(data.icon, color: Colors.white, size: 22),
+            ),
+          ],
         ),
       ),
     );
@@ -198,4 +270,18 @@ class _GlowCircle extends StatelessWidget {
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
+}
+
+class _BannerSlideData {
+  const _BannerSlideData({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.colors,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Color> colors;
 }

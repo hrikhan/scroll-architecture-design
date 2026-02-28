@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants.dart';
 import '../../../core/utils/refresh_notification_predicate.dart';
 import '../../../widgets/banner_header.dart';
-import '../../../widgets/pinned_tabbar.dart';
 import '../../auth/screens/profile_screen.dart';
 import '../viewmodels/products_viewmodel.dart';
 import '../widgets/widgets.dart';
@@ -22,6 +21,7 @@ class ProductsScreen extends ConsumerStatefulWidget {
 
 class _ProductsScreenState extends ConsumerState<ProductsScreen>
     with SingleTickerProviderStateMixin {
+  // One controller drives both TabBar taps and TabBarView swipes.
   late final TabController _tabController;
 
   @override
@@ -59,11 +59,13 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
       body: RefreshIndicator(
         onRefresh: () => ref.read(productsViewModelProvider.notifier).refresh(),
         triggerMode: RefreshIndicatorTriggerMode.onEdge,
+        // Gate refresh to valid top-edge vertical drag notifications.
         notificationPredicate: shouldHandlePullToRefresh,
         child: NestedScrollView(
           physics: _kHomeScrollPhysics,
           headerSliverBuilder: (context, innerBoxIsScrolled) {
             return [
+              // Keeps outer header overlap in sync with each inner tab sliver.
               SliverOverlapAbsorber(
                 handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
                   context,
@@ -92,17 +94,32 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen>
                     collapseMode: CollapseMode.parallax,
                     background: BannerHeader(),
                   ),
+                  bottom: PreferredSize(
+                    preferredSize: tabBar.preferredSize,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        boxShadow: innerBoxIsScrolled
+                            ? const [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 6,
+                                  offset: Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: tabBar,
+                    ),
+                  ),
                 ),
-              ),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: PinnedTabBar(tabBar: tabBar),
               ),
             ];
           },
           body: TabBarView(
             controller: _tabController,
             children: [
+              // Each tab renders its own sliver body and preserves its own offset.
               for (final tab in ProductsTab.values)
                 ProductsTabView(
                   tab: tab,

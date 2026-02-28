@@ -33,6 +33,7 @@ class ProductsTabView extends StatefulWidget {
 
 class _ProductsTabViewState extends State<ProductsTabView>
     with AutomaticKeepAliveClientMixin {
+  // Keep tab subtree alive so switching tabs does not rebuild and lose state.
   @override
   bool get wantKeepAlive => true;
 
@@ -41,9 +42,11 @@ class _ProductsTabViewState extends State<ProductsTabView>
     super.build(context);
 
     return CustomScrollView(
+      // Unique key per tab restores scroll position independently.
       key: PageStorageKey<String>('products-tab-${widget.tab.name}'),
       physics: _kHomeScrollPhysics,
       slivers: [
+        // Inject absorbed overlap so inner slivers start below the app bar.
         SliverOverlapInjector(
           handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
         ),
@@ -62,6 +65,7 @@ class _ProductsTabViewState extends State<ProductsTabView>
     required List<Product> products,
     required VoidCallback onRetry,
   }) {
+    // Preserve already rendered data while background refreshes are in flight.
     final hasInitialData = asyncProducts.hasValue;
     if (asyncProducts.isLoading && !hasInitialData) {
       return const [
@@ -94,6 +98,7 @@ class _ProductsTabViewState extends State<ProductsTabView>
     }
 
     return [
+      // Grid keeps item rendering lazy through SliverChildBuilderDelegate.
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
         sliver: SliverGrid(

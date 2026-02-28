@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+// Reusable error block used inside tab slivers for initial load failures.
 class ProductsErrorState extends StatelessWidget {
   const ProductsErrorState({
     super.key,

@@ -1,6 +1,14 @@
 import 'package:flutter/material.dart';
 
 bool shouldHandlePullToRefresh(ScrollNotification notification) {
+  // In this screen we use RefreshIndicator + NestedScrollView + inner
+  // CustomScrollView tabs. Refresh notifications can come from either the
+  // outer scrollable (depth 0) or the active inner tab scrollable (depth 2).
+  final isSupportedDepth = notification.depth == 0 || notification.depth == 2;
+  if (!isSupportedDepth) {
+    return false;
+  }
+
   if (notification.metrics.axis != Axis.vertical) {
     return false;
   }
@@ -15,12 +23,11 @@ bool shouldHandlePullToRefresh(ScrollNotification notification) {
   }
 
   if (notification is ScrollUpdateNotification) {
-    return notification.dragDetails != null &&
-        (notification.scrollDelta ?? 0) < 0;
+    return notification.dragDetails != null;
   }
 
   if (notification is OverscrollNotification) {
-    return notification.dragDetails != null && notification.overscroll < 0;
+    return notification.dragDetails != null;
   }
 
   // Allow refresh indicator lifecycle to complete after a valid pull sequence.
